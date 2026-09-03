@@ -1,0 +1,29 @@
+name: digital_clock
+description: "A Custom Full-Screen Digital Clock educational project in Flutter."
+publish_to: "none"
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.5.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  # For local key-value persistence across app restarts
+  shared_preferences: ^2.3.2
+  # For keeping the mobile device screen awake during full-screen clock mode
+  wakelock_plus: ^1.2.8
+  # For modern typography and Google fonts styles
+  google_fonts: ^6.2.1
+  # For picking custom background wallpaper from gallery
+  image_picker: ^1.1.2
+  # For date and time formatting
+  intl: ^0.19.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
