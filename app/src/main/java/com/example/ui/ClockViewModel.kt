@@ -7,6 +7,8 @@ import androidx.lifecycle.viewModelScope
 import com.example.data.ClockDatabase
 import com.example.data.ClockRepository
 import com.example.data.ClockSettings
+import com.example.data.ReadingSession
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -43,15 +45,36 @@ class ClockViewModel(application: Application) : AndroidViewModel(application) {
     private val _isFullScreen = MutableStateFlow(false)
     val isFullScreen: StateFlow<Boolean> = _isFullScreen.asStateFlow()
 
+    // Reactive flow of all saved reading sessions from Room database
+    val readingSessions: StateFlow<List<ReadingSession>>
+
+    // Live elapsed reading/focus time (in seconds) while in full-screen clock mode
+    private val _fullScreenElapsedSeconds = MutableStateFlow(0L)
+    val fullScreenElapsedSeconds: StateFlow<Long> = _fullScreenElapsedSeconds.asStateFlow()
+
+    private var fullScreenTimerJob: Job? = null
+    private var sessionStartTimeMillis: Long? = null
+
+    // Holds the newly completed session to display the summary dialog upon exiting full screen
+    private val _sessionCompletionDialog = MutableStateFlow<ReadingSession?>(null)
+    val sessionCompletionDialog: StateFlow<ReadingSession?> = _sessionCompletionDialog.asStateFlow()
+
     init {
         val database = ClockDatabase.getDatabase(application)
-        repository = ClockRepository(database.clockSettingsDao())
+        repository = ClockRepository(database.clockSettingsDao(), database.readingSessionDao())
 
         // Collect database settings into StateFlow with default initial value
         settings = repository.settings.stateIn(
             scope = viewModelScope,
             started = SharingStarted.Eagerly,
             initialValue = ClockSettings.DEFAULT
+        )
+
+        // Collect reading sessions from Room database
+        readingSessions = repository.readingSessions.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyList()
         )
 
         // Start the continuous second-tick coroutine timer
@@ -185,13 +208,70 @@ class ClockViewModel(application: Application) : AndroidViewModel(application) {
 
     fun enterFullScreen() {
         _isFullScreen.value = true
+        sessionStartTimeMillis = System.currentTimeMillis()
+        _fullScreenElapsedSeconds.value = 0L
+
+        fullScreenTimerJob?.cancel()
+        fullScreenTimerJob = viewModelScope.launch {
+            while (isActive && _isFullScreen.value) {
+                delay(1000L)
+                _fullScreenElapsedSeconds.value += 1L
+            }
+        }
     }
 
     fun exitFullScreen() {
         _isFullScreen.value = false
+        fullScreenTimerJob?.cancel()
+        fullScreenTimerJob = null
+
+        val duration = _fullScreenElapsedSeconds.value
+        val start = sessionStartTimeMillis ?: (System.currentTimeMillis() - duration * 1000L)
+        val end = System.currentTimeMillis()
+
+        if (duration >= 1L) {
+            val sessionToSave = ReadingSession(
+                durationSeconds = duration,
+                startTimeMillis = start,
+                endTimeMillis = end,
+                note = if (settings.value.showNote) settings.value.customNote else ""
+            )
+            viewModelScope.launch {
+                val insertedId = repository.saveReadingSession(sessionToSave)
+                val savedSessionWithId = sessionToSave.copy(id = insertedId)
+                _sessionCompletionDialog.value = savedSessionWithId
+            }
+        }
+
+        sessionStartTimeMillis = null
+        _fullScreenElapsedSeconds.value = 0L
+    }
+
+    fun dismissSessionDialog() {
+        _sessionCompletionDialog.value = null
+    }
+
+    fun deleteReadingSession(id: Long) {
+        viewModelScope.launch {
+            repository.deleteReadingSession(id)
+            if (_sessionCompletionDialog.value?.id == id) {
+                _sessionCompletionDialog.value = null
+            }
+        }
+    }
+
+    fun clearAllReadingSessions() {
+        viewModelScope.launch {
+            repository.clearAllReadingSessions()
+            _sessionCompletionDialog.value = null
+        }
     }
 
     fun toggleFullScreen() {
-        _isFullScreen.value = !_isFullScreen.value
+        if (_isFullScreen.value) {
+            exitFullScreen()
+        } else {
+            enterFullScreen()
+        }
     }
 }

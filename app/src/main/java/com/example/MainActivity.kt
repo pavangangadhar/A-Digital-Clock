@@ -20,11 +20,13 @@ import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.ui.ClockViewModel
+import com.example.ui.components.ReadingSessionDialog
 import com.example.ui.screens.BackgroundScreen
 import com.example.ui.screens.ColorScreen
 import com.example.ui.screens.FontScreen
 import com.example.ui.screens.FullScreenClockScreen
 import com.example.ui.screens.HomeScreen
+import com.example.ui.screens.ReadingHistoryScreen
 import com.example.ui.screens.SettingsScreen
 import com.example.ui.theme.MyApplicationTheme
 
@@ -37,6 +39,7 @@ enum class AppScreen {
     COLOR,
     BACKGROUND,
     SETTINGS,
+    READING_HISTORY,
     FULL_SCREEN
 }
 
@@ -69,14 +72,34 @@ fun DigitalClockApp(
 ) {
     val currentTime by viewModel.currentTime.collectAsStateWithLifecycle()
     val settings by viewModel.settings.collectAsStateWithLifecycle()
+    val readingSessions by viewModel.readingSessions.collectAsStateWithLifecycle()
+    val elapsedSeconds by viewModel.fullScreenElapsedSeconds.collectAsStateWithLifecycle()
+    val sessionCompletionDialog by viewModel.sessionCompletionDialog.collectAsStateWithLifecycle()
 
     var currentScreen by rememberSaveable { mutableStateOf(AppScreen.HOME) }
 
     // Intercept back button when not on HOME screen
     if (currentScreen != AppScreen.HOME) {
         BackHandler {
+            if (currentScreen == AppScreen.FULL_SCREEN) {
+                viewModel.exitFullScreen()
+            }
             currentScreen = AppScreen.HOME
         }
+    }
+
+    // Modal Dialog shown immediately when exiting full screen to show how much time was read
+    sessionCompletionDialog?.let { session ->
+        ReadingSessionDialog(
+            session = session,
+            settings = settings,
+            onDismiss = { viewModel.dismissSessionDialog() },
+            onDelete = { id -> viewModel.deleteReadingSession(id) },
+            onViewHistory = {
+                viewModel.dismissSessionDialog()
+                currentScreen = AppScreen.READING_HISTORY
+            }
+        )
     }
 
     Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
@@ -90,7 +113,13 @@ fun DigitalClockApp(
                     HomeScreen(
                         dateTime = currentTime,
                         settings = settings,
-                        onFullScreenClick = { currentScreen = AppScreen.FULL_SCREEN },
+                        sessionCount = readingSessions.size,
+                        totalReadingSeconds = readingSessions.sumOf { it.durationSeconds },
+                        onFullScreenClick = {
+                            viewModel.enterFullScreen()
+                            currentScreen = AppScreen.FULL_SCREEN
+                        },
+                        onNavigateHistory = { currentScreen = AppScreen.READING_HISTORY },
                         onNavigateFont = { currentScreen = AppScreen.FONT },
                         onNavigateColor = { currentScreen = AppScreen.COLOR },
                         onNavigateBackground = { currentScreen = AppScreen.BACKGROUND },
@@ -150,6 +179,21 @@ fun DigitalClockApp(
                         onSizeSelected = { size -> viewModel.setClockSize(size) },
                         onPositionSelected = { pos -> viewModel.setClockPosition(pos) },
                         onResetDefaults = { viewModel.resetToDefaults() },
+                        onNavigateHistory = { currentScreen = AppScreen.READING_HISTORY },
+                        onBack = { currentScreen = AppScreen.HOME }
+                    )
+                }
+
+                AppScreen.READING_HISTORY -> {
+                    ReadingHistoryScreen(
+                        sessions = readingSessions,
+                        settings = settings,
+                        onDeleteSession = { id -> viewModel.deleteReadingSession(id) },
+                        onClearAllSessions = { viewModel.clearAllReadingSessions() },
+                        onStartFullScreen = {
+                            viewModel.enterFullScreen()
+                            currentScreen = AppScreen.FULL_SCREEN
+                        },
                         onBack = { currentScreen = AppScreen.HOME }
                     )
                 }
@@ -158,7 +202,11 @@ fun DigitalClockApp(
                     FullScreenClockScreen(
                         dateTime = currentTime,
                         settings = settings,
-                        onExit = { currentScreen = AppScreen.HOME }
+                        elapsedSeconds = elapsedSeconds,
+                        onExit = {
+                            viewModel.exitFullScreen()
+                            currentScreen = AppScreen.HOME
+                        }
                     )
                 }
             }

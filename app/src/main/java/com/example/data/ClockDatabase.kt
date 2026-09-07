@@ -15,10 +15,11 @@ import androidx.room.RoomDatabase
  * - In Flutter, equivalent local storage is typically handled via SharedPreferences or Hive/Isar.
  * - We use a singleton pattern here so only one database instance is active at any time.
  */
-@Database(entities = [ClockSettings::class], version = 2, exportSchema = false)
+@Database(entities = [ClockSettings::class, ReadingSession::class], version = 3, exportSchema = false)
 abstract class ClockDatabase : RoomDatabase() {
 
     abstract fun clockSettingsDao(): ClockSettingsDao
+    abstract fun readingSessionDao(): ReadingSessionDao
 
     companion object {
         @Volatile

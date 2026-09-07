@@ -20,6 +20,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForwardIos
+import androidx.compose.material.icons.filled.AutoStories
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Notes
 import androidx.compose.material.icons.filled.RestartAlt
@@ -85,6 +87,7 @@ fun SettingsScreen(
     onSizeSelected: (String) -> Unit,
     onPositionSelected: (String) -> Unit,
     onResetDefaults: () -> Unit,
+    onNavigateHistory: () -> Unit = {},
     onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -474,7 +477,64 @@ fun SettingsScreen(
                 }
             }
 
-            // Section 5: Reset Defaults
+            // Section 5: Reading Sessions & History
+            Card(
+                onClick = onNavigateHistory,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("settings_reading_history_card"),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = Color.White.copy(alpha = 0.05f)
+                )
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = Color(settings.colorHex).copy(alpha = 0.15f),
+                            modifier = Modifier.size(38.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.Default.AutoStories,
+                                    contentDescription = null,
+                                    tint = Color(settings.colorHex),
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Text(
+                                text = "Reading & Focus History",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp,
+                                color = Color.White
+                            )
+                            Text(
+                                text = "View recorded sessions & manage history",
+                                fontSize = 12.sp,
+                                color = Color.White.copy(alpha = 0.55f)
+                            )
+                        }
+                    }
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowForwardIos,
+                        contentDescription = "Open History",
+                        tint = Color.White.copy(alpha = 0.4f),
+                        modifier = Modifier.size(14.dp)
+                    )
+                }
+            }
+
+            // Section 6: Reset Defaults
             OutlinedButton(
                 onClick = onResetDefaults,
                 modifier = Modifier

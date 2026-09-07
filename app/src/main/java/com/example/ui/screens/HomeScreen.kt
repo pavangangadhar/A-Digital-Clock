@@ -16,6 +16,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowForwardIos
+import androidx.compose.material.icons.filled.AutoStories
 import androidx.compose.material.icons.filled.ColorLens
 import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.Image
@@ -43,6 +45,7 @@ import androidx.compose.ui.unit.sp
 import com.example.data.ClockSettings
 import com.example.ui.components.BackgroundContainer
 import com.example.ui.components.ClockDisplay
+import com.example.ui.components.formatReadingDuration
 import java.time.LocalDateTime
 
 /**
@@ -50,8 +53,9 @@ import java.time.LocalDateTime
  *
  * The primary dashboard displaying:
  * 1. Live central digital clock (Time + Date) updating every second
- * 2. Large prominent "FULL SCREEN CLOCK" button
- * 3. Quick-navigation buttons for Font, Color, Background, and Settings
+ * 2. Reading time tracker quick card & summary
+ * 3. Large prominent "FULL SCREEN CLOCK" button
+ * 4. Quick-navigation buttons for Font, Color, Background, and Settings
  *
  * Educational Note:
  * - Stateless composable: receives state (dateTime, settings) and event lambdas.
@@ -62,7 +66,10 @@ import java.time.LocalDateTime
 fun HomeScreen(
     dateTime: LocalDateTime,
     settings: ClockSettings,
+    sessionCount: Int = 0,
+    totalReadingSeconds: Long = 0L,
     onFullScreenClick: () -> Unit,
+    onNavigateHistory: () -> Unit,
     onNavigateFont: () -> Unit,
     onNavigateColor: () -> Unit,
     onNavigateBackground: () -> Unit,
@@ -99,16 +106,45 @@ fun HomeScreen(
                     )
                 }
 
-                Surface(
-                    shape = RoundedCornerShape(12.dp),
-                    color = Color.White.copy(alpha = 0.12f)
-                ) {
-                    Text(
-                        text = settings.fontStyle,
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = Color(settings.colorHex)
-                    )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    // Reading History Quick Pill
+                    Surface(
+                        onClick = onNavigateHistory,
+                        shape = RoundedCornerShape(12.dp),
+                        color = Color.White.copy(alpha = 0.12f),
+                        modifier = Modifier.testTag("nav_btn_reading_history_top")
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.AutoStories,
+                                contentDescription = "Reading History",
+                                tint = Color(settings.colorHex),
+                                modifier = Modifier.size(15.dp)
+                            )
+                            Spacer(modifier = Modifier.width(5.dp))
+                            Text(
+                                text = if (sessionCount > 0) "$sessionCount Read" else "History",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = Color.White
+                            )
+                        }
+                    }
+
+                    // Font Style Indicator Pill
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = Color.White.copy(alpha = 0.12f)
+                    ) {
+                        Text(
+                            text = settings.fontStyle,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = Color(settings.colorHex)
+                        )
+                    }
                 }
             }
 
@@ -116,7 +152,7 @@ fun HomeScreen(
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 16.dp)
+                    .padding(vertical = 12.dp)
                     .testTag("home_clock_card"),
                 shape = RoundedCornerShape(24.dp),
                 colors = CardDefaults.cardColors(
@@ -127,7 +163,7 @@ fun HomeScreen(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(vertical = 42.dp, horizontal = 12.dp),
+                        .padding(vertical = 36.dp, horizontal = 12.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     ClockDisplay(
@@ -145,14 +181,78 @@ fun HomeScreen(
                     .fillMaxWidth()
                     .padding(bottom = 8.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
+                // Clickable Reading Tracker Summary Banner
+                Card(
+                    onClick = onNavigateHistory,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("home_reading_history_card"),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = Color.Black.copy(alpha = 0.28f)
+                    )
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 14.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Surface(
+                                shape = CircleShape,
+                                color = Color(settings.colorHex).copy(alpha = 0.2f),
+                                modifier = Modifier.size(34.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.Default.AutoStories,
+                                        contentDescription = null,
+                                        tint = Color(settings.colorHex),
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            }
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column {
+                                Text(
+                                    text = "Reading Time Tracker",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 13.sp,
+                                    color = Color.White
+                                )
+                                Text(
+                                    text = if (sessionCount > 0) {
+                                        "Total read: ${formatReadingDuration(totalReadingSeconds)} • $sessionCount sessions"
+                                    } else {
+                                        "Full screen tracks your reading time • Tap for history"
+                                    },
+                                    fontSize = 11.sp,
+                                    color = Color.White.copy(alpha = 0.6f)
+                                )
+                            }
+                        }
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowForwardIos,
+                            contentDescription = "View History",
+                            tint = Color.White.copy(alpha = 0.5f),
+                            modifier = Modifier.size(13.dp)
+                        )
+                    }
+                }
+
                 // Large Prominent FULL SCREEN CLOCK Button
                 Button(
                     onClick = onFullScreenClick,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(58.dp)
+                        .height(56.dp)
                         .testTag("full_screen_clock_button"),
                     shape = RoundedCornerShape(18.dp),
                     colors = ButtonDefaults.buttonColors(

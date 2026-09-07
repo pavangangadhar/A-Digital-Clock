@@ -1,6 +1,6 @@
 {
   "name": "Digital Clock",
-  "description": "Educational full-screen digital clock with 10 font styles, custom colors, backgrounds, screen-awake mode, and local storage.",
+  "description": "Educational full-screen digital clock with reading session timer, saved reading history, 10 font styles, custom colors, backgrounds, screen-awake mode, and local Room persistence.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
