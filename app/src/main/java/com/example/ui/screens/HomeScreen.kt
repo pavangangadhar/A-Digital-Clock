@@ -79,6 +79,8 @@ fun HomeScreen(
     settings: ClockSettings,
     sessionCount: Int = 0,
     totalReadingSeconds: Long = 0L,
+    todayReadingSeconds: Long = 0L,
+    weekReadingSeconds: Long = 0L,
     onFullScreenClick: () -> Unit,
     onNavigateHistory: () -> Unit,
     onNavigateFont: () -> Unit,
@@ -342,15 +344,44 @@ fun HomeScreen(
                                     fontSize = 13.sp,
                                     color = Color.White
                                 )
-                                Text(
-                                    text = if (sessionCount > 0) {
-                                        "Total read: ${formatReadingDuration(totalReadingSeconds)} • $sessionCount sessions"
-                                    } else {
-                                        "Full screen tracks your reading time • Tap for history"
-                                    },
-                                    fontSize = 11.sp,
-                                    color = Color.White.copy(alpha = 0.6f)
-                                )
+                                if (sessionCount > 0) {
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Row(
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Surface(
+                                            shape = RoundedCornerShape(6.dp),
+                                            color = Color(settings.colorHex).copy(alpha = 0.2f)
+                                        ) {
+                                            Text(
+                                                text = "Today: ${formatReadingDuration(todayReadingSeconds)}",
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color(settings.colorHex),
+                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                            )
+                                        }
+                                        Surface(
+                                            shape = RoundedCornerShape(6.dp),
+                                            color = Color.White.copy(alpha = 0.08f)
+                                        ) {
+                                            Text(
+                                                text = "Week: ${formatReadingDuration(weekReadingSeconds)}",
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = Color.White.copy(alpha = 0.85f),
+                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                            )
+                                        }
+                                    }
+                                } else {
+                                    Text(
+                                        text = "Full screen tracks your reading time • Tap for analysis",
+                                        fontSize = 11.sp,
+                                        color = Color.White.copy(alpha = 0.6f)
+                                    )
+                                }
                             }
                         }
                         Icon(

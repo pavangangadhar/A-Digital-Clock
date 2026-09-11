@@ -73,6 +73,7 @@ fun DigitalClockApp(
     val currentTime by viewModel.currentTime.collectAsStateWithLifecycle()
     val settings by viewModel.settings.collectAsStateWithLifecycle()
     val readingSessions by viewModel.readingSessions.collectAsStateWithLifecycle()
+    val readingAnalytics by viewModel.readingAnalytics.collectAsStateWithLifecycle()
     val elapsedSeconds by viewModel.fullScreenElapsedSeconds.collectAsStateWithLifecycle()
     val sessionCompletionDialog by viewModel.sessionCompletionDialog.collectAsStateWithLifecycle()
 
@@ -93,6 +94,8 @@ fun DigitalClockApp(
         ReadingSessionDialog(
             session = session,
             settings = settings,
+            todayTotalSeconds = readingAnalytics.todaySeconds,
+            weekTotalSeconds = readingAnalytics.weekSeconds,
             onDismiss = { viewModel.dismissSessionDialog() },
             onDelete = { id -> viewModel.deleteReadingSession(id) },
             onViewHistory = {
@@ -115,6 +118,8 @@ fun DigitalClockApp(
                         settings = settings,
                         sessionCount = readingSessions.size,
                         totalReadingSeconds = readingSessions.sumOf { it.durationSeconds },
+                        todayReadingSeconds = readingAnalytics.todaySeconds,
+                        weekReadingSeconds = readingAnalytics.weekSeconds,
                         onFullScreenClick = {
                             viewModel.enterFullScreen()
                             currentScreen = AppScreen.FULL_SCREEN

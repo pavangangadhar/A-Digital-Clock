@@ -56,6 +56,8 @@ import java.util.Locale
 fun ReadingSessionDialog(
     session: ReadingSession,
     settings: ClockSettings,
+    todayTotalSeconds: Long = session.durationSeconds,
+    weekTotalSeconds: Long = session.durationSeconds,
     onDismiss: () -> Unit,
     onDelete: (Long) -> Unit,
     onViewHistory: () -> Unit
@@ -136,6 +138,61 @@ fun ReadingSessionDialog(
                             fontSize = 12.sp,
                             color = Color.White.copy(alpha = 0.5f)
                         )
+                    }
+                }
+
+                // Daily & Weekly analysis summary cards
+                Spacer(modifier = Modifier.height(10.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Surface(
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(12.dp),
+                        color = Color.White.copy(alpha = 0.08f)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(vertical = 8.dp, horizontal = 8.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                text = "Today's Total",
+                                fontSize = 11.sp,
+                                color = Color.White.copy(alpha = 0.6f)
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = formatReadingDuration(todayTotalSeconds),
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(settings.colorHex)
+                            )
+                        }
+                    }
+
+                    Surface(
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(12.dp),
+                        color = Color.White.copy(alpha = 0.08f)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(vertical = 8.dp, horizontal = 8.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                text = "This Week",
+                                fontSize = 11.sp,
+                                color = Color.White.copy(alpha = 0.6f)
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = formatReadingDuration(weekTotalSeconds),
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(settings.colorHex)
+                            )
+                        }
                     }
                 }
 

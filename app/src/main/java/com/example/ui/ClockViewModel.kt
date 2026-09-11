@@ -7,13 +7,16 @@ import androidx.lifecycle.viewModelScope
 import com.example.data.ClockDatabase
 import com.example.data.ClockRepository
 import com.example.data.ClockSettings
+import com.example.data.ReadingAnalytics
 import com.example.data.ReadingSession
+import com.example.data.computeReadingAnalytics
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -48,6 +51,9 @@ class ClockViewModel(application: Application) : AndroidViewModel(application) {
     // Reactive flow of all saved reading sessions from Room database
     val readingSessions: StateFlow<List<ReadingSession>>
 
+    // Reactive flow of daily and weekly reading analytics computed from Room reading sessions
+    val readingAnalytics: StateFlow<ReadingAnalytics>
+
     // Live elapsed reading/focus time (in seconds) while in full-screen clock mode
     private val _fullScreenElapsedSeconds = MutableStateFlow(0L)
     val fullScreenElapsedSeconds: StateFlow<Long> = _fullScreenElapsedSeconds.asStateFlow()
@@ -76,6 +82,15 @@ class ClockViewModel(application: Application) : AndroidViewModel(application) {
             started = SharingStarted.WhileSubscribed(5000),
             initialValue = emptyList()
         )
+
+        // Derive daily and weekly reading analytics reactively
+        readingAnalytics = repository.readingSessions
+            .map { sessions -> computeReadingAnalytics(sessions) }
+            .stateIn(
+                scope = viewModelScope,
+                started = SharingStarted.WhileSubscribed(5000),
+                initialValue = ReadingAnalytics()
+            )
 
         // Start the continuous second-tick coroutine timer
         startClockTimer()
