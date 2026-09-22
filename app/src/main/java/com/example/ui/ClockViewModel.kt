@@ -108,6 +108,11 @@ class ClockViewModel(application: Application) : AndroidViewModel(application) {
                 initialValue = ReadingAnalytics()
             )
 
+        // Enforce 3-month history retention policy on startup
+        viewModelScope.launch {
+            repository.pruneSessionsOlderThanThreeMonths()
+        }
+
         // Start the continuous second-tick coroutine timer
         startClockTimer()
     }

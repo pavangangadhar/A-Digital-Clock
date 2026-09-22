@@ -113,4 +113,42 @@ class ReadingAnalyticsTest {
         val todayStat = analytics.weeklyDayStats.first { it.isToday }
         assertEquals(900L, todayStat.totalBreakSeconds)
     }
+
+    @Test
+    fun testDateRangePresetsAndRangeAnalytics() {
+        val cal = Calendar.getInstance().apply {
+            set(Calendar.HOUR_OF_DAY, 12)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }
+        val now = cal.timeInMillis
+        val oneDayMillis = 24L * 60L * 60L * 1000L
+
+        val last7Days = com.example.data.createDateRangeSelection(com.example.data.DateRangePreset.LAST_7_DAYS, nowMillis = now)
+        assertEquals(com.example.data.DateRangePreset.LAST_7_DAYS, last7Days.preset)
+        assertEquals(7, last7Days.daysCount)
+
+        val last30Days = com.example.data.createDateRangeSelection(com.example.data.DateRangePreset.LAST_30_DAYS, nowMillis = now)
+        assertEquals(30, last30Days.daysCount)
+
+        val last3Months = com.example.data.createDateRangeSelection(com.example.data.DateRangePreset.LAST_3_MONTHS, nowMillis = now)
+        assertTrue(last3Months.daysCount in 89..93)
+
+        // Test Range Analytics computation
+        val sessions = listOf(
+            ReadingSession(id = 1, durationSeconds = 1200L, startTimeMillis = now - 1200000L, endTimeMillis = now, breakDurationSeconds = 300L),
+            ReadingSession(id = 2, durationSeconds = 1800L, startTimeMillis = now - oneDayMillis, endTimeMillis = now - oneDayMillis + 1800000L, breakDurationSeconds = 600L),
+            // Session 40 days ago (outside 30-day range)
+            ReadingSession(id = 3, durationSeconds = 5000L, startTimeMillis = now - (40 * oneDayMillis), endTimeMillis = now - (40 * oneDayMillis) + 5000000L)
+        )
+
+        val rangeStats = com.example.data.computeRangeAnalytics(sessions, last30Days)
+        assertEquals(2, rangeStats.totalSessions)
+        assertEquals(3000L, rangeStats.totalReadingSeconds) // 1200 + 1800
+        assertEquals(900L, rangeStats.totalBreakSeconds) // 300 + 600
+        assertEquals(2, rangeStats.activeDaysCount)
+        assertEquals(1800L, rangeStats.longestSessionSeconds)
+        assertEquals(2, rangeStats.daySummaries.size)
+    }
 }

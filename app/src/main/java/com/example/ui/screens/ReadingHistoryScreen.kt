@@ -29,12 +29,14 @@ import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DeleteOutline
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.FreeBreakfast
 import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.HourglassBottom
 import androidx.compose.material.icons.filled.Insights
 import androidx.compose.material.icons.filled.ListAlt
+import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material.icons.filled.Spa
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.filled.TrendingUp
@@ -74,6 +76,7 @@ import com.example.data.DayGroupedSessions
 import com.example.data.ReadingAnalytics
 import com.example.data.ReadingSession
 import com.example.data.computeReadingAnalytics
+import com.example.ui.components.ExportPdfDialog
 import com.example.ui.components.WeeklyReadingChart
 import com.example.ui.components.formatReadingDuration
 import java.text.SimpleDateFormat
@@ -108,6 +111,7 @@ fun ReadingHistoryScreen(
     val analytics = remember(sessions) { computeReadingAnalytics(sessions) }
     var currentViewMode by remember { mutableStateOf(HistoryViewMode.ANALYSIS) }
     var showClearConfirmDialog by remember { mutableStateOf(false) }
+    var showExportPdfDialog by remember { mutableStateOf(false) }
     var selectedDateKey by remember { mutableStateOf<String?>(null) }
     var sessionToDelete by remember { mutableStateOf<ReadingSession?>(null) }
 
@@ -182,6 +186,15 @@ fun ReadingHistoryScreen(
         )
     }
 
+    // Export PDF Report Dialog with Date Range Picker (up to 3 months)
+    if (showExportPdfDialog) {
+        ExportPdfDialog(
+            sessions = sessions,
+            settings = settings,
+            onDismiss = { showExportPdfDialog = false }
+        )
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -215,6 +228,17 @@ fun ReadingHistoryScreen(
                 },
                 actions = {
                     if (sessions.isNotEmpty()) {
+                        IconButton(
+                            onClick = { showExportPdfDialog = true },
+                            modifier = Modifier.testTag("export_pdf_top_btn")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.PictureAsPdf,
+                                contentDescription = "Download PDF Report",
+                                tint = Color(settings.colorHex)
+                            )
+                        }
+
                         IconButton(
                             onClick = { showClearConfirmDialog = true },
                             modifier = Modifier.testTag("clear_all_history_btn")
@@ -288,7 +312,8 @@ fun ReadingHistoryScreen(
                                 settings = settings,
                                 selectedDateKey = selectedDateKey,
                                 onSelectDay = { stat -> selectedDateKey = stat.dateKey },
-                                onSwitchToSessions = { currentViewMode = HistoryViewMode.SESSIONS }
+                                onSwitchToSessions = { currentViewMode = HistoryViewMode.SESSIONS },
+                                onOpenExportPdf = { showExportPdfDialog = true }
                             )
                         }
                         HistoryViewMode.SESSIONS -> {
@@ -355,7 +380,8 @@ private fun AnalysisTabContent(
     settings: ClockSettings,
     selectedDateKey: String?,
     onSelectDay: (com.example.data.DayReadingStat) -> Unit,
-    onSwitchToSessions: () -> Unit
+    onSwitchToSessions: () -> Unit,
+    onOpenExportPdf: () -> Unit
 ) {
     LazyColumn(
         modifier = Modifier
@@ -364,6 +390,152 @@ private fun AnalysisTabContent(
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
+        // 📄 PDF REPORT DOWNLOAD CARD
+        item {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("download_pdf_report_card"),
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E2C)),
+                border = BorderStroke(1.dp, Color(settings.colorHex).copy(alpha = 0.35f))
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            modifier = Modifier.weight(1f),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Surface(
+                                shape = CircleShape,
+                                color = Color(settings.colorHex).copy(alpha = 0.2f),
+                                modifier = Modifier.size(38.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.Default.PictureAsPdf,
+                                        contentDescription = null,
+                                        tint = Color(settings.colorHex),
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                            }
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column {
+                                Text(
+                                    text = "Download PDF Report",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 15.sp,
+                                    color = Color.White
+                                )
+                                Text(
+                                    text = "Select custom date range",
+                                    fontSize = 11.sp,
+                                    color = Color(settings.colorHex)
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.width(8.dp))
+
+                        // Show Box for Up to 3 Months badge
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = Color(0xFF28283C),
+                            border = BorderStroke(1.dp, Color(settings.colorHex).copy(alpha = 0.5f))
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.CalendarToday,
+                                    contentDescription = null,
+                                    tint = Color(settings.colorHex),
+                                    modifier = Modifier.size(12.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "Up to 3 Months",
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    // Prominent Show Box: Up to 3 Months History Retention
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = Color(0xFF242436),
+                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.1f)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.History,
+                                contentDescription = null,
+                                tint = Color(settings.colorHex),
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Saved History: Up to 3 Months (90 Days)",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = Color.White
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    Text(
+                        text = "Download your reading analysis, focus duration, eye-rest breaks, daily summaries, and individual session logs directly in PDF format.",
+                        fontSize = 12.sp,
+                        color = Color.White.copy(alpha = 0.75f),
+                        lineHeight = 17.sp
+                    )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Button(
+                        onClick = onOpenExportPdf,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(44.dp)
+                            .testTag("open_export_pdf_dialog_btn"),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(settings.colorHex),
+                            contentColor = Color.Black
+                        )
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Download,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Select Date Range & Download PDF",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
+        }
         // Daily & Weekly KPI Highlight Cards Row
         item {
             Row(
