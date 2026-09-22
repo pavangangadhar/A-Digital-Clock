@@ -4,12 +4,15 @@ import android.annotation.SuppressLint
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.data.BreakSuggestion
 import com.example.data.ClockDatabase
 import com.example.data.ClockRepository
 import com.example.data.ClockSettings
 import com.example.data.ReadingAnalytics
+import com.example.data.ReadingBreakState
 import com.example.data.ReadingSession
 import com.example.data.computeReadingAnalytics
+import com.example.data.computeRealTimeBreakSuggestion
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -58,12 +61,25 @@ class ClockViewModel(application: Application) : AndroidViewModel(application) {
     private val _fullScreenElapsedSeconds = MutableStateFlow(0L)
     val fullScreenElapsedSeconds: StateFlow<Long> = _fullScreenElapsedSeconds.asStateFlow()
 
+    // Active reading break state (countdown timer, progress, completion)
+    private val _breakState = MutableStateFlow(ReadingBreakState())
+    val breakState: StateFlow<ReadingBreakState> = _breakState.asStateFlow()
+
+    // Real-time break suggestion banner prompt (e.g. at 20m, 40m, 60m milestones)
+    private val _realTimeBreakPrompt = MutableStateFlow<BreakSuggestion?>(null)
+    val realTimeBreakPrompt: StateFlow<BreakSuggestion?> = _realTimeBreakPrompt.asStateFlow()
+
     private var fullScreenTimerJob: Job? = null
+    private var breakTimerJob: Job? = null
     private var sessionStartTimeMillis: Long? = null
+    private var lastPromptedMilestoneMinutes: Int = 0
 
     // Holds the newly completed session to display the summary dialog upon exiting full screen
     private val _sessionCompletionDialog = MutableStateFlow<ReadingSession?>(null)
     val sessionCompletionDialog: StateFlow<ReadingSession?> = _sessionCompletionDialog.asStateFlow()
+
+    // Tracks cumulative break duration taken (in seconds) during the current full-screen session
+    private var sessionBreakSeconds: Long = 0L
 
     init {
         val database = ClockDatabase.getDatabase(application)
@@ -225,23 +241,145 @@ class ClockViewModel(application: Application) : AndroidViewModel(application) {
         _isFullScreen.value = true
         sessionStartTimeMillis = System.currentTimeMillis()
         _fullScreenElapsedSeconds.value = 0L
+        _breakState.value = ReadingBreakState(isBreakActive = false)
+        _realTimeBreakPrompt.value = null
+        lastPromptedMilestoneMinutes = 0
+        sessionBreakSeconds = 0L
 
+        startReadingTimer()
+    }
+
+    private fun startReadingTimer() {
         fullScreenTimerJob?.cancel()
         fullScreenTimerJob = viewModelScope.launch {
-            while (isActive && _isFullScreen.value) {
+            while (isActive && _isFullScreen.value && !_breakState.value.isBreakActive) {
                 delay(1000L)
                 _fullScreenElapsedSeconds.value += 1L
+
+                // Real-time automatic break prompt at 20 min, 40 min, 60 min reading milestones
+                val elapsedMinutes = (_fullScreenElapsedSeconds.value / 60).toInt()
+                if (elapsedMinutes >= 20 && elapsedMinutes % 20 == 0 && elapsedMinutes != lastPromptedMilestoneMinutes) {
+                    if (!_breakState.value.isBreakActive) {
+                        lastPromptedMilestoneMinutes = elapsedMinutes
+                        _realTimeBreakPrompt.value = computeRealTimeBreakSuggestion(_fullScreenElapsedSeconds.value)
+                    }
+                }
             }
         }
+    }
+
+    /**
+     * Starts a real-time reading break of 5 min, 10 min, or 15 min.
+     * Pauses the reading timer so break duration is never counted as reading time.
+     */
+    fun startBreak(durationMinutes: Int) {
+        // Pause active reading timer during break
+        fullScreenTimerJob?.cancel()
+        _realTimeBreakPrompt.value = null
+
+        val totalSecs = durationMinutes * 60
+        _breakState.value = ReadingBreakState(
+            isBreakActive = true,
+            breakTotalSeconds = totalSecs,
+            breakRemainingSeconds = totalSecs,
+            isCompleted = false,
+            selectedDurationMinutes = durationMinutes
+        )
+
+        breakTimerJob?.cancel()
+        breakTimerJob = viewModelScope.launch {
+            while (isActive && _breakState.value.isBreakActive) {
+                delay(1000L)
+                sessionBreakSeconds += 1L
+                val remaining = _breakState.value.breakRemainingSeconds - 1
+                if (remaining <= 0) {
+                    _breakState.value = _breakState.value.copy(
+                        breakRemainingSeconds = 0,
+                        isCompleted = true
+                    )
+                    break
+                } else {
+                    _breakState.value = _breakState.value.copy(
+                        breakRemainingSeconds = remaining
+                    )
+                }
+            }
+        }
+    }
+
+    /**
+     * Adds extra time to the active break timer (default +60s / 1 min).
+     */
+    fun addBreakSeconds(seconds: Int = 60) {
+        val current = _breakState.value
+        val newTotal = current.breakTotalSeconds + seconds
+        val newRemaining = current.breakRemainingSeconds + seconds
+        val wasCompleted = current.isCompleted
+
+        _breakState.value = current.copy(
+            breakTotalSeconds = newTotal,
+            breakRemainingSeconds = newRemaining,
+            isCompleted = false
+        )
+
+        if (wasCompleted || breakTimerJob?.isActive != true) {
+            breakTimerJob?.cancel()
+            breakTimerJob = viewModelScope.launch {
+                while (isActive && _breakState.value.isBreakActive) {
+                    delay(1000L)
+                    sessionBreakSeconds += 1L
+                    val remaining = _breakState.value.breakRemainingSeconds - 1
+                    if (remaining <= 0) {
+                        _breakState.value = _breakState.value.copy(
+                            breakRemainingSeconds = 0,
+                            isCompleted = true
+                        )
+                        break
+                    } else {
+                        _breakState.value = _breakState.value.copy(
+                            breakRemainingSeconds = remaining
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Resumes reading session from break and restarts the reading timer.
+     */
+    fun resumeReadingFromBreak() {
+        breakTimerJob?.cancel()
+        breakTimerJob = null
+        _breakState.value = ReadingBreakState(isBreakActive = false)
+        // Resume reading timer
+        startReadingTimer()
+    }
+
+    fun dismissBreakPrompt() {
+        _realTimeBreakPrompt.value = null
+    }
+
+    fun getBreakSuggestion(): BreakSuggestion {
+        return computeRealTimeBreakSuggestion(_fullScreenElapsedSeconds.value)
+    }
+
+    fun triggerRealTimeBreakSuggestion() {
+        _realTimeBreakPrompt.value = computeRealTimeBreakSuggestion(_fullScreenElapsedSeconds.value)
     }
 
     fun exitFullScreen() {
         _isFullScreen.value = false
         fullScreenTimerJob?.cancel()
         fullScreenTimerJob = null
+        breakTimerJob?.cancel()
+        breakTimerJob = null
+        _breakState.value = ReadingBreakState(isBreakActive = false)
+        _realTimeBreakPrompt.value = null
 
         val duration = _fullScreenElapsedSeconds.value
-        val start = sessionStartTimeMillis ?: (System.currentTimeMillis() - duration * 1000L)
+        val breakTaken = sessionBreakSeconds
+        val start = sessionStartTimeMillis ?: (System.currentTimeMillis() - (duration + breakTaken) * 1000L)
         val end = System.currentTimeMillis()
 
         if (duration >= 1L) {
@@ -249,7 +387,8 @@ class ClockViewModel(application: Application) : AndroidViewModel(application) {
                 durationSeconds = duration,
                 startTimeMillis = start,
                 endTimeMillis = end,
-                note = if (settings.value.showNote) settings.value.customNote else ""
+                note = if (settings.value.showNote) settings.value.customNote else "",
+                breakDurationSeconds = breakTaken
             )
             viewModelScope.launch {
                 val insertedId = repository.saveReadingSession(sessionToSave)
@@ -259,6 +398,7 @@ class ClockViewModel(application: Application) : AndroidViewModel(application) {
         }
 
         sessionStartTimeMillis = null
+        sessionBreakSeconds = 0L
         _fullScreenElapsedSeconds.value = 0L
     }
 

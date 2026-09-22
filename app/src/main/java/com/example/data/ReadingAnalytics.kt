@@ -18,7 +18,8 @@ data class DayReadingStat(
     val dateSubtitle: String, // "Sep 11"
     val totalSeconds: Long,
     val sessionCount: Int,
-    val isToday: Boolean = false
+    val isToday: Boolean = false,
+    val totalBreakSeconds: Long = 0L
 )
 
 /**
@@ -29,16 +30,20 @@ data class DayReadingStat(
 data class ReadingAnalytics(
     val todaySeconds: Long = 0L,
     val todaySessionsCount: Int = 0,
+    val todayBreakSeconds: Long = 0L,
     val yesterdaySeconds: Long = 0L,
     val yesterdaySessionsCount: Int = 0,
+    val yesterdayBreakSeconds: Long = 0L,
     val weekSeconds: Long = 0L,
     val weekSessionsCount: Int = 0,
+    val weekBreakSeconds: Long = 0L,
     val dailyAverageThisWeekSeconds: Long = 0L,
     val weeklyDayStats: List<DayReadingStat> = emptyList(), // 7 days ending with today
     val maxDaySecondsInWeek: Long = 0L,
     val mostActiveDayLabel: String = "None",
     val allTimeSeconds: Long = 0L,
     val allTimeSessionsCount: Int = 0,
+    val allTimeBreakSeconds: Long = 0L,
     val dayGroups: List<DayGroupedSessions> = emptyList()
 )
 
@@ -50,7 +55,8 @@ data class DayGroupedSessions(
     val dateLabel: String,
     val totalSeconds: Long,
     val sessionCount: Int,
-    val sessions: List<ReadingSession>
+    val sessions: List<ReadingSession>,
+    val totalBreakSeconds: Long = 0L
 )
 
 /**
@@ -103,6 +109,7 @@ fun computeReadingAnalytics(
             it.endTimeMillis in dayStart until dayEnd
         }
         val totalSecs = sessionsOnDay.sumOf { it.durationSeconds }
+        val totalBreakSecs = sessionsOnDay.sumOf { it.breakDurationSeconds }
 
         DayReadingStat(
             dayOffset = dayOffset,
@@ -112,7 +119,8 @@ fun computeReadingAnalytics(
             dateSubtitle = dateSubtitle,
             totalSeconds = totalSecs,
             sessionCount = sessionsOnDay.size,
-            isToday = isToday
+            isToday = isToday,
+            totalBreakSeconds = totalBreakSecs
         )
     }
 
@@ -121,13 +129,16 @@ fun computeReadingAnalytics(
 
     val todaySeconds = todayStat?.totalSeconds ?: 0L
     val todaySessionsCount = todayStat?.sessionCount ?: 0
+    val todayBreakSeconds = todayStat?.totalBreakSeconds ?: 0L
 
     val yesterdaySeconds = yesterdayStat?.totalSeconds ?: 0L
     val yesterdaySessionsCount = yesterdayStat?.sessionCount ?: 0
+    val yesterdayBreakSeconds = yesterdayStat?.totalBreakSeconds ?: 0L
 
     val weekSessions = sessions.filter { it.endTimeMillis >= weekStartMillis }
     val weekSeconds = weekSessions.sumOf { it.durationSeconds }
     val weekSessionsCount = weekSessions.size
+    val weekBreakSeconds = weekSessions.sumOf { it.breakDurationSeconds }
 
     val dailyAverageThisWeekSeconds = weekSeconds / 7L
     val maxDaySecondsInWeek = weeklyDayStats.maxOfOrNull { it.totalSeconds } ?: 0L
@@ -141,6 +152,7 @@ fun computeReadingAnalytics(
 
     val allTimeSeconds = sessions.sumOf { it.durationSeconds }
     val allTimeSessionsCount = sessions.size
+    val allTimeBreakSeconds = sessions.sumOf { it.breakDurationSeconds }
 
     // Group all sessions by calendar day for historical day-by-day logs
     val groupedByDate = sessions
@@ -171,23 +183,28 @@ fun computeReadingAnalytics(
             dateLabel = label,
             totalSeconds = daySessions.sumOf { it.durationSeconds },
             sessionCount = daySessions.size,
-            sessions = daySessions
+            sessions = daySessions,
+            totalBreakSeconds = daySessions.sumOf { it.breakDurationSeconds }
         )
     }
 
     return ReadingAnalytics(
         todaySeconds = todaySeconds,
         todaySessionsCount = todaySessionsCount,
+        todayBreakSeconds = todayBreakSeconds,
         yesterdaySeconds = yesterdaySeconds,
         yesterdaySessionsCount = yesterdaySessionsCount,
+        yesterdayBreakSeconds = yesterdayBreakSeconds,
         weekSeconds = weekSeconds,
         weekSessionsCount = weekSessionsCount,
+        weekBreakSeconds = weekBreakSeconds,
         dailyAverageThisWeekSeconds = dailyAverageThisWeekSeconds,
         weeklyDayStats = weeklyDayStats,
         maxDaySecondsInWeek = maxDaySecondsInWeek,
         mostActiveDayLabel = mostActiveDayLabel,
         allTimeSeconds = allTimeSeconds,
         allTimeSessionsCount = allTimeSessionsCount,
+        allTimeBreakSeconds = allTimeBreakSeconds,
         dayGroups = dayGroups
     )
 }

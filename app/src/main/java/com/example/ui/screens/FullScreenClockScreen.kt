@@ -11,12 +11,20 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -24,7 +32,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MenuBook
+import androidx.compose.material.icons.filled.Spa
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Surface
@@ -39,6 +50,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
@@ -49,35 +61,23 @@ import androidx.compose.ui.unit.sp
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import com.example.data.BreakSuggestion
 import com.example.data.ClockSettings
+import com.example.data.ReadingBreakState
+import com.example.data.computeRealTimeBreakSuggestion
 import com.example.ui.components.BackgroundContainer
+import com.example.ui.components.BreakOptionsDialog
+import com.example.ui.components.BreakPromptBanner
 import com.example.ui.components.ClockDisplay
+import com.example.ui.components.ReadingBreakOverlay
 import kotlinx.coroutines.delay
 import java.time.LocalDateTime
 
 /**
  * FullScreenClockScreen
  *
- * Immersive full-screen digital clock display with real-time reading session tracking.
- *
- * Educational Notes on Screen-Awake & Immersive Mode:
- *
- * 1. KEEP SCREEN AWAKE (Android vs Flutter/iOS):
- *    - Android Native: WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON is applied to the Activity window.
- *      Unlike WakeLocks, FLAG_KEEP_SCREEN_ON does not require WAKE_LOCK permissions and is managed
- *      automatically by the window manager when the app loses focus or is closed.
- *      Using DisposableEffect ensures the flag is added on enter and cleared immediately on exit!
- *    - Flutter / Cross-Platform: In Flutter, packages like `wakelock_plus` or `keep_screen_on` invoke
- *      this exact native Window flag on Android and `UIApplication.shared.isIdleTimerDisabled = true` on iOS!
- *
- * 2. HIDING SYSTEM BARS (Immersive Mode):
- *    - WindowInsetsControllerCompat hides both status bar and navigation bar.
- *    - BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE allows transient access by swiping from the edge.
- *
- * 3. EXIT INTERACTION & SESSION RECORDING:
- *    - Double-tap gesture anywhere on the screen triggers onExit().
- *    - An unobtrusive floating exit icon in the corner provides an accessible touch affordance.
- *    - Live counter tracks reading duration and persists it upon exit.
+ * Immersive full-screen digital clock display with real-time reading session tracking,
+ * quick break options (5 min, 10 min, 15 min), and real-time intelligent break suggestions.
  */
 @SuppressLint("NewApi")
 @Composable
@@ -85,6 +85,12 @@ fun FullScreenClockScreen(
     dateTime: LocalDateTime,
     settings: ClockSettings,
     elapsedSeconds: Long = 0L,
+    breakState: ReadingBreakState = ReadingBreakState(),
+    realTimePrompt: BreakSuggestion? = null,
+    onStartBreak: (Int) -> Unit = {},
+    onResumeReading: () -> Unit = {},
+    onAddOneMinute: () -> Unit = {},
+    onDismissPrompt: () -> Unit = {},
     onExit: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -95,10 +101,7 @@ fun FullScreenClockScreen(
     DisposableEffect(activity) {
         val window = activity?.window
         if (window != null) {
-            // Keep screen on while full-screen clock is active
             window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-
-            // Hide system navigation bar and status bar
             val insetsController = WindowCompat.getInsetsController(window, window.decorView)
             insetsController.systemBarsBehavior =
                 WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
@@ -108,20 +111,38 @@ fun FullScreenClockScreen(
         onDispose {
             val win = activity?.window
             if (win != null) {
-                // Return device to normal sleep behavior immediately
                 win.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-
-                // Restore system bars
                 val insetsController = WindowCompat.getInsetsController(win, win.decorView)
                 insetsController.show(WindowInsetsCompat.Type.systemBars())
             }
         }
     }
 
-    // Temporary hint banner that auto-fades after 3.5 seconds
+    // If a break is currently active, show the immersive Break Overlay directly
+    if (breakState.isBreakActive) {
+        ReadingBreakOverlay(
+            breakState = breakState,
+            accentColorHex = settings.colorHex,
+            onResumeReading = onResumeReading,
+            onAddOneMinute = onAddOneMinute,
+            onExitSession = onExit,
+            modifier = modifier
+        )
+        return
+    }
+
+    // State for opening full break options & recommendation dialog
+    var showBreakOptionsDialog by remember { mutableStateOf(false) }
+
+    // Dynamic real-time break recommendation based on current reading elapsed duration
+    val currentSuggestion = remember(elapsedSeconds) {
+        computeRealTimeBreakSuggestion(elapsedSeconds)
+    }
+
+    // Temporary hint banner that auto-fades after 4 seconds
     var showHint by remember { mutableStateOf(true) }
     LaunchedEffect(Unit) {
-        delay(3500)
+        delay(4000)
         showHint = false
     }
 
@@ -137,12 +158,24 @@ fun FullScreenClockScreen(
         label = "pulseAlpha"
     )
 
+    // Break Options Dialog
+    if (showBreakOptionsDialog) {
+        BreakOptionsDialog(
+            suggestion = currentSuggestion,
+            accentColorHex = settings.colorHex,
+            onSelectDuration = { duration ->
+                showBreakOptionsDialog = false
+                onStartBreak(duration)
+            },
+            onDismiss = { showBreakOptionsDialog = false }
+        )
+    }
+
     BackgroundContainer(
         settings = settings,
         modifier = modifier
             .fillMaxSize()
             .pointerInput(Unit) {
-                // Double-tap gesture to exit full screen mode
                 detectTapGestures(
                     onDoubleTap = {
                         onExit()
@@ -151,41 +184,127 @@ fun FullScreenClockScreen(
             }
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
-            // Live Reading Session Counter Pill (Top Center)
-            Surface(
-                shape = RoundedCornerShape(20.dp),
-                color = Color.Black.copy(alpha = 0.55f),
+            // Top Center Reading Status & Break Control Bar
+            Column(
                 modifier = Modifier
                     .align(Alignment.TopCenter)
-                    .padding(top = 20.dp)
-                    .testTag("fullscreen_reading_timer")
+                    .padding(top = 16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                // Live Reading Session Counter Pill
+                Surface(
+                    shape = RoundedCornerShape(20.dp),
+                    color = Color.Black.copy(alpha = 0.58f),
+                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.1f)),
+                    modifier = Modifier.testTag("fullscreen_reading_timer")
                 ) {
-                    // Pulsing active recording indicator
-                    Box(
-                        modifier = Modifier
-                            .size(8.dp)
-                            .alpha(pulseAlpha)
-                            .background(Color(0xFF4CAF50), CircleShape)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Icon(
-                        imageVector = Icons.Default.MenuBook,
-                        contentDescription = "Reading",
-                        tint = Color(settings.colorHex),
-                        modifier = Modifier.size(15.dp)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = "Reading: ${formatElapsedTimer(elapsedSeconds)}",
-                        color = Color.White.copy(alpha = 0.92f),
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        letterSpacing = 0.5.sp
-                    )
+                    Row(
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // Pulsing active recording indicator
+                        Box(
+                            modifier = Modifier
+                                .size(8.dp)
+                                .alpha(pulseAlpha)
+                                .background(Color(0xFF4CAF50), CircleShape)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Icon(
+                            imageVector = Icons.Default.MenuBook,
+                            contentDescription = "Reading",
+                            tint = Color(settings.colorHex),
+                            modifier = Modifier.size(15.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "Reading: ${formatElapsedTimer(elapsedSeconds)}",
+                            color = Color.White.copy(alpha = 0.95f),
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            letterSpacing = 0.5.sp
+                        )
+                    }
+                }
+
+                // Quick Break Options Toolbar: [ ☕ Break ] [ 5m ] [ 10m ] [ 15m ] [ ℹ️ Suggestion ]
+                Surface(
+                    shape = RoundedCornerShape(20.dp),
+                    color = Color.Black.copy(alpha = 0.65f),
+                    border = BorderStroke(1.dp, Color(settings.colorHex).copy(alpha = 0.35f)),
+                    modifier = Modifier.testTag("fullscreen_break_toolbar")
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        // "Break" title pill that opens full options dialog
+                        Row(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(12.dp))
+                                .clickable { showBreakOptionsDialog = true }
+                                .padding(horizontal = 6.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Spa,
+                                contentDescription = "Break Options",
+                                tint = Color(settings.colorHex),
+                                modifier = Modifier.size(15.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "Break:",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White.copy(alpha = 0.9f)
+                            )
+                        }
+
+                        // 5 MIN QUICK CHIP
+                        BreakQuickChip(
+                            label = "5 min",
+                            isSuggested = (currentSuggestion.durationMinutes == 5),
+                            accentColor = Color(settings.colorHex),
+                            onClick = { onStartBreak(5) },
+                            testTag = "quick_break_5m_btn"
+                        )
+
+                        // 10 MIN QUICK CHIP
+                        BreakQuickChip(
+                            label = "10 min",
+                            isSuggested = (currentSuggestion.durationMinutes == 10),
+                            accentColor = Color(settings.colorHex),
+                            onClick = { onStartBreak(10) },
+                            testTag = "quick_break_10m_btn"
+                        )
+
+                        // 15 MIN QUICK CHIP
+                        BreakQuickChip(
+                            label = "15 min",
+                            isSuggested = (currentSuggestion.durationMinutes == 15),
+                            accentColor = Color(settings.colorHex),
+                            onClick = { onStartBreak(15) },
+                            testTag = "quick_break_15m_btn"
+                        )
+
+                        // Suggestion info button
+                        IconButton(
+                            onClick = { showBreakOptionsDialog = true },
+                            modifier = Modifier
+                                .size(28.dp)
+                                .testTag("open_break_dialog_btn")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Info,
+                                contentDescription = "Break suggestion details",
+                                tint = Color(settings.colorHex).copy(alpha = 0.85f),
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    }
                 }
             }
 
@@ -222,9 +341,29 @@ fun FullScreenClockScreen(
                 }
             }
 
-            // Bottom Gentle Hint Banner (Fades out automatically)
+            // Bottom Real-Time Break Prompt Banner (Appears at reading milestones or upon suggestion)
             AnimatedVisibility(
-                visible = showHint,
+                visible = (realTimePrompt != null),
+                enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
+                exit = slideOutVertically(targetOffsetY = { it }) + fadeOut(),
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 20.dp)
+            ) {
+                realTimePrompt?.let { prompt ->
+                    BreakPromptBanner(
+                        suggestion = prompt,
+                        accentColorHex = settings.colorHex,
+                        onAcceptSuggestedBreak = { minutes -> onStartBreak(minutes) },
+                        onOpenOptions = { showBreakOptionsDialog = true },
+                        onDismiss = onDismissPrompt
+                    )
+                }
+            }
+
+            // Bottom Gentle Hint Banner (Fades out automatically if no break prompt is showing)
+            AnimatedVisibility(
+                visible = (showHint && realTimePrompt == null),
                 enter = fadeIn(),
                 exit = fadeOut(),
                 modifier = Modifier
@@ -233,16 +372,57 @@ fun FullScreenClockScreen(
             ) {
                 Surface(
                     shape = RoundedCornerShape(20.dp),
-                    color = Color.Black.copy(alpha = 0.55f)
+                    color = Color.Black.copy(alpha = 0.6f)
                 ) {
                     Text(
-                        text = "Double-tap anywhere or tap ✕ to exit & save session",
+                        text = "Double-tap anywhere or tap ✕ to exit • Tap 5m/10m/15m for reading break",
                         color = Color.White.copy(alpha = 0.75f),
                         fontSize = 12.sp,
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                     )
                 }
             }
+        }
+    }
+}
+
+/**
+ * Compact Quick Break Chip in the full-screen toolbar
+ */
+@Composable
+private fun BreakQuickChip(
+    label: String,
+    isSuggested: Boolean,
+    accentColor: Color,
+    onClick: () -> Unit,
+    testTag: String
+) {
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(10.dp),
+        color = if (isSuggested) accentColor.copy(alpha = 0.28f) else Color.White.copy(alpha = 0.08f),
+        border = if (isSuggested) BorderStroke(1.dp, accentColor) else BorderStroke(1.dp, Color.White.copy(alpha = 0.12f)),
+        modifier = Modifier.testTag(testTag)
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            if (isSuggested) {
+                Icon(
+                    imageVector = Icons.Default.Star,
+                    contentDescription = "Suggested",
+                    tint = accentColor,
+                    modifier = Modifier.size(11.dp)
+                )
+                Spacer(modifier = Modifier.width(3.dp))
+            }
+            Text(
+                text = label,
+                fontSize = 11.sp,
+                fontWeight = if (isSuggested) FontWeight.Bold else FontWeight.Medium,
+                color = if (isSuggested) accentColor else Color.White.copy(alpha = 0.9f)
+            )
         }
     }
 }

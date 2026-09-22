@@ -75,6 +75,8 @@ fun DigitalClockApp(
     val readingSessions by viewModel.readingSessions.collectAsStateWithLifecycle()
     val readingAnalytics by viewModel.readingAnalytics.collectAsStateWithLifecycle()
     val elapsedSeconds by viewModel.fullScreenElapsedSeconds.collectAsStateWithLifecycle()
+    val breakState by viewModel.breakState.collectAsStateWithLifecycle()
+    val realTimeBreakPrompt by viewModel.realTimeBreakPrompt.collectAsStateWithLifecycle()
     val sessionCompletionDialog by viewModel.sessionCompletionDialog.collectAsStateWithLifecycle()
 
     var currentScreen by rememberSaveable { mutableStateOf(AppScreen.HOME) }
@@ -208,6 +210,12 @@ fun DigitalClockApp(
                         dateTime = currentTime,
                         settings = settings,
                         elapsedSeconds = elapsedSeconds,
+                        breakState = breakState,
+                        realTimePrompt = realTimeBreakPrompt,
+                        onStartBreak = { minutes -> viewModel.startBreak(minutes) },
+                        onResumeReading = { viewModel.resumeReadingFromBreak() },
+                        onAddOneMinute = { viewModel.addBreakSeconds(60) },
+                        onDismissPrompt = { viewModel.dismissBreakPrompt() },
                         onExit = {
                             viewModel.exitFullScreen()
                             currentScreen = AppScreen.HOME

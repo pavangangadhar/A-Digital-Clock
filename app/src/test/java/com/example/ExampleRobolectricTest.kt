@@ -57,7 +57,8 @@ class ExampleRobolectricTest {
         durationSeconds = 120L,
         startTimeMillis = 1000L,
         endTimeMillis = 121000L,
-        note = "Study Kotlin"
+        note = "Study Kotlin",
+        breakDurationSeconds = 300L
     )
 
     val id = dao.insertSession(session)
@@ -66,6 +67,7 @@ class ExampleRobolectricTest {
     val sessions = dao.getAllSessions().first()
     assertEquals(1, sessions.size)
     assertEquals(120L, sessions[0].durationSeconds)
+    assertEquals(300L, sessions[0].breakDurationSeconds)
     assertEquals("Study Kotlin", sessions[0].note)
 
     // Test delete

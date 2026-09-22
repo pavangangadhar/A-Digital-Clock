@@ -29,11 +29,13 @@ import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DeleteOutline
+import androidx.compose.material.icons.filled.FreeBreakfast
 import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.HourglassBottom
 import androidx.compose.material.icons.filled.Insights
 import androidx.compose.material.icons.filled.ListAlt
+import androidx.compose.material.icons.filled.Spa
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.material3.AlertDialog
@@ -418,6 +420,33 @@ private fun AnalysisTabContent(
                             color = Color.White.copy(alpha = 0.55f)
                         )
 
+                        if (analytics.todayBreakSeconds > 0L) {
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Surface(
+                                shape = RoundedCornerShape(6.dp),
+                                color = Color(0xFFFFB74D).copy(alpha = 0.15f)
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.FreeBreakfast,
+                                        contentDescription = null,
+                                        tint = Color(0xFFFFB74D),
+                                        modifier = Modifier.size(11.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = "Break: ${formatReadingDuration(analytics.todayBreakSeconds)}",
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = Color(0xFFFFB74D)
+                                    )
+                                }
+                            }
+                        }
+
                         if (analytics.yesterdaySeconds > 0) {
                             Spacer(modifier = Modifier.height(6.dp))
                             Text(
@@ -479,6 +508,33 @@ private fun AnalysisTabContent(
                             color = Color.White.copy(alpha = 0.55f)
                         )
 
+                        if (analytics.weekBreakSeconds > 0L) {
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Surface(
+                                shape = RoundedCornerShape(6.dp),
+                                color = Color(0xFFFFB74D).copy(alpha = 0.15f)
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.FreeBreakfast,
+                                        contentDescription = null,
+                                        tint = Color(0xFFFFB74D),
+                                        modifier = Modifier.size(11.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = "Breaks: ${formatReadingDuration(analytics.weekBreakSeconds)}",
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = Color(0xFFFFB74D)
+                                    )
+                                }
+                            }
+                        }
+
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(
                             text = "Avg ${formatReadingDuration(analytics.dailyAverageThisWeekSeconds)} / day",
@@ -538,18 +594,29 @@ private fun AnalysisTabContent(
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        StatPill(
-                            label = "All-Time Total",
-                            value = formatReadingDuration(analytics.allTimeSeconds),
-                            icon = Icons.Default.AutoStories
-                        )
-                        StatPill(
-                            label = "Total Sessions",
-                            value = "${analytics.allTimeSessionsCount}",
-                            icon = Icons.Default.Timer
-                        )
+                        Box(modifier = Modifier.weight(1f)) {
+                            StatPill(
+                                label = "All-Time Read",
+                                value = formatReadingDuration(analytics.allTimeSeconds),
+                                icon = Icons.Default.AutoStories
+                            )
+                        }
+                        Box(modifier = Modifier.weight(1f)) {
+                            StatPill(
+                                label = "All-Time Breaks",
+                                value = formatReadingDuration(analytics.allTimeBreakSeconds),
+                                icon = Icons.Default.FreeBreakfast
+                            )
+                        }
+                        Box(modifier = Modifier.weight(0.9f)) {
+                            StatPill(
+                                label = "Sessions",
+                                value = "${analytics.allTimeSessionsCount}",
+                                icon = Icons.Default.Timer
+                            )
+                        }
                     }
                 }
             }
@@ -602,11 +669,21 @@ private fun DaySummaryCard(
                     fontWeight = FontWeight.Bold,
                     color = Color.White
                 )
-                Text(
-                    text = "${group.sessionCount} session${if (group.sessionCount != 1) "s" else ""}",
-                    fontSize = 11.sp,
-                    color = Color.White.copy(alpha = 0.5f)
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "${group.sessionCount} session${if (group.sessionCount != 1) "s" else ""}",
+                        fontSize = 11.sp,
+                        color = Color.White.copy(alpha = 0.5f)
+                    )
+                    if (group.totalBreakSeconds > 0L) {
+                        Text(
+                            text = " • Break: ${formatReadingDuration(group.totalBreakSeconds)}",
+                            fontSize = 11.sp,
+                            color = Color(0xFFFFB74D).copy(alpha = 0.85f),
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
             }
 
             Surface(
@@ -656,11 +733,21 @@ private fun SessionsTabContent(
                         fontWeight = FontWeight.Bold,
                         color = Color(accentColorHex)
                     )
-                    Text(
-                        text = "Total: ${formatReadingDuration(group.totalSeconds)}",
-                        fontSize = 12.sp,
-                        color = Color.White.copy(alpha = 0.6f)
-                    )
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text(
+                            text = "Total: ${formatReadingDuration(group.totalSeconds)}",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color.White.copy(alpha = 0.8f)
+                        )
+                        if (group.totalBreakSeconds > 0L) {
+                            Text(
+                                text = "Breaks: ${formatReadingDuration(group.totalBreakSeconds)}",
+                                fontSize = 11.sp,
+                                color = Color(0xFFFFB74D).copy(alpha = 0.85f)
+                            )
+                        }
+                    }
                 }
             }
 
@@ -726,12 +813,41 @@ private fun SessionItemCard(
                 Spacer(modifier = Modifier.width(12.dp))
 
                 Column {
-                    Text(
-                        text = formatReadingDuration(session.durationSeconds),
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 16.sp,
-                        color = Color.White
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = formatReadingDuration(session.durationSeconds),
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 16.sp,
+                            color = Color.White
+                        )
+
+                        if (session.breakDurationSeconds > 0L) {
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Surface(
+                                shape = RoundedCornerShape(6.dp),
+                                color = Color(0xFFFFB74D).copy(alpha = 0.18f)
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.FreeBreakfast,
+                                        contentDescription = null,
+                                        tint = Color(0xFFFFB74D),
+                                        modifier = Modifier.size(10.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(3.dp))
+                                    Text(
+                                        text = "${formatReadingDuration(session.breakDurationSeconds)} break",
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = Color(0xFFFFB74D)
+                                    )
+                                }
+                            }
+                        }
+                    }
 
                     Spacer(modifier = Modifier.height(2.dp))
 

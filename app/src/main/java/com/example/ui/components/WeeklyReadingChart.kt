@@ -189,7 +189,12 @@ fun WeeklyReadingChart(
                                 }
                             }
                             Text(
-                                text = "${stat.dateSubtitle} • ${stat.sessionCount} reading session${if (stat.sessionCount != 1) "s" else ""}",
+                                text = buildString {
+                                    append("${stat.dateSubtitle} • ${stat.sessionCount} session${if (stat.sessionCount != 1) "s" else ""}")
+                                    if (stat.totalBreakSeconds > 0L) {
+                                        append(" • Break: ${formatReadingDuration(stat.totalBreakSeconds)}")
+                                    }
+                                },
                                 fontSize = 11.sp,
                                 color = Color.White.copy(alpha = 0.55f)
                             )

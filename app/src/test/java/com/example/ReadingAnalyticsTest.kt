@@ -72,4 +72,45 @@ class ReadingAnalyticsTest {
         assertEquals(2700L, todayStat.totalSeconds)
         assertEquals(2, todayStat.sessionCount)
     }
+
+    @Test
+    fun testBreakTimeAggregation() {
+        val cal = Calendar.getInstance().apply {
+            set(Calendar.HOUR_OF_DAY, 12)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }
+        val now = cal.timeInMillis
+        val oneDayMillis = 24L * 60L * 60L * 1000L
+
+        val sessions = listOf(
+            // Today session 1: 1800s read + 300s break (5m)
+            ReadingSession(id = 1, durationSeconds = 1800L, startTimeMillis = now - 2100000L, endTimeMillis = now, breakDurationSeconds = 300L),
+            // Today session 2: 900s read + 600s break (10m)
+            ReadingSession(id = 2, durationSeconds = 900L, startTimeMillis = now - 1500000L, endTimeMillis = now - 60000L, breakDurationSeconds = 600L),
+            // Yesterday session: 1200s read + 300s break (5m)
+            ReadingSession(id = 3, durationSeconds = 1200L, startTimeMillis = now - oneDayMillis, endTimeMillis = now - oneDayMillis + 1500000L, breakDurationSeconds = 300L),
+            // 3 days ago session: 3600s read + 900s break (15m)
+            ReadingSession(id = 4, durationSeconds = 3600L, startTimeMillis = now - (3 * oneDayMillis), endTimeMillis = now - (3 * oneDayMillis) + 4500000L, breakDurationSeconds = 900L)
+        )
+
+        val analytics = computeReadingAnalytics(sessions, now)
+
+        // Today break: 300 + 600 = 900s (15 min)
+        assertEquals(900L, analytics.todayBreakSeconds)
+
+        // Yesterday break: 300s (5 min)
+        assertEquals(300L, analytics.yesterdayBreakSeconds)
+
+        // Week break: 300 + 600 + 300 + 900 = 2100s (35 min)
+        assertEquals(2100L, analytics.weekBreakSeconds)
+
+        // All time break: 2100s
+        assertEquals(2100L, analytics.allTimeBreakSeconds)
+
+        // Today dayStat check
+        val todayStat = analytics.weeklyDayStats.first { it.isToday }
+        assertEquals(900L, todayStat.totalBreakSeconds)
+    }
 }

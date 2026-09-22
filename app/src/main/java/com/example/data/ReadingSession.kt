@@ -22,5 +22,6 @@ data class ReadingSession(
     val durationSeconds: Long,
     val startTimeMillis: Long,
     val endTimeMillis: Long,
-    val note: String = ""
+    val note: String = "",
+    val breakDurationSeconds: Long = 0L
 )
